@@ -18,7 +18,7 @@ func main() {
 	}
 	cfg.Region = endpoints.ApSoutheast1RegionID
 	svc := cloudwatchlogs.New(cfg)
-	from := time.Now().Add(-time.Hour*time.Duration(2)).Unix() * 1000
+	from := time.Now().Add(-time.Hour*time.Duration(6)).Unix() * 1000
 	log.WithField("from", from).Info("last 2 hours")
 
 	req := svc.FilterLogEventsRequest(&cloudwatchlogs.FilterLogEventsInput{
@@ -30,14 +30,16 @@ func main() {
 	p := req.Paginate()
 	for p.Next() {
 		page := p.CurrentPage()
-		if len(page.Events) > 0 {
-			log.Infof("Events: %#v", len(page.Events))
-
-			previous, err := findPreviousLog(svc, &page.Events[0])
+		for _, event := range page.Events {
+			previous, err := findPreviousLog(svc, &event)
 			if err != nil {
 				panic(err)
 			}
-			log.Infof("Previous log: %s", previous)
+
+			log.WithFields(log.Fields{
+				"5xx":  *event.Message,
+				"prev": previous,
+			}).Info("previous log")
 		}
 	}
 
@@ -48,7 +50,10 @@ func main() {
 }
 
 func findPreviousLog(client *cloudwatchlogs.CloudWatchLogs, event *cloudwatchlogs.FilteredLogEvent) (string, error) {
-	log.WithField("streamName", *event.LogStreamName).Info("streamName")
+	// log.WithFields(log.Fields{
+	// 	"streamName": *event.LogStreamName,
+	// 	"event":      *event.Message,
+	// }).Info("pulling up previous log")
 	req := client.GetLogEventsRequest(&cloudwatchlogs.GetLogEventsInput{
 		LogGroupName:  aws.String("bugzilla"),
 		LogStreamName: event.LogStreamName,
@@ -56,16 +61,13 @@ func findPreviousLog(client *cloudwatchlogs.CloudWatchLogs, event *cloudwatchlog
 	p := req.Paginate()
 	for p.Next() {
 		page := p.CurrentPage()
-		if len(page.Events) > 0 {
-			log.Infof("Events from findPreviousLog: %#v", len(page.Events))
-		}
 		for i, e := range page.Events {
 			// log.WithFields(log.Fields{
 			// 	"e":     *e.Message,
 			// 	"event": *event.Message,
 			// }).Info("searching")
 			if *event.Message == *e.Message {
-				log.Info("BINGO")
+				// log.Info("BINGO")
 				return *page.Events[i-1].Message, nil
 			}
 		}
