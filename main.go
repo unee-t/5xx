@@ -1,16 +1,20 @@
 package main
 
 import (
+	"flag"
 	"time"
 
 	"github.com/apex/log"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/endpoints"
 	"github.com/aws/aws-sdk-go-v2/aws/external"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
-	"github.com/aws/aws-sdk-go/aws"
 )
 
 func main() {
+	hours := flag.Int("hours", 1, "Hours since it happened")
+	flag.Parse()
+
 	cfg, err := external.LoadDefaultAWSConfig(external.WithSharedConfigProfile("uneet-prod"))
 	if err != nil {
 		log.WithError(err).Fatal("setting up credentials")
@@ -18,8 +22,8 @@ func main() {
 	}
 	cfg.Region = endpoints.ApSoutheast1RegionID
 	svc := cloudwatchlogs.New(cfg)
-	from := time.Now().Add(-time.Hour*time.Duration(6)).Unix() * 1000
-	log.WithField("from", from).Info("last 2 hours")
+	from := time.Now().Add(-time.Hour*time.Duration(*hours)).Unix() * 1000
+	log.WithField("from", from).Infof("last %d hours", *hours)
 
 	req := svc.FilterLogEventsRequest(&cloudwatchlogs.FilterLogEventsInput{
 		FilterPattern: aws.String(`[..., request = *HTTP*, status_code = 5**, , ,]`),
@@ -67,7 +71,6 @@ func findPreviousLog(client *cloudwatchlogs.CloudWatchLogs, event *cloudwatchlog
 			// 	"event": *event.Message,
 			// }).Info("searching")
 			if *event.Message == *e.Message {
-				// log.Info("BINGO")
 				return *page.Events[i-1].Message, nil
 			}
 		}
