@@ -12,7 +12,14 @@ import (
 )
 
 func main() {
-	hours := flag.Int("hours", 1, "Hours since it happened")
+	var hours int
+
+	const (
+		anHour    = 1
+		flagUsage = "Hours since 5xx"
+	)
+	flag.IntVar(&hours, "hours", anHour, flagUsage)
+	flag.IntVar(&hours, "h", anHour, flagUsage)
 	flag.Parse()
 
 	cfg, err := external.LoadDefaultAWSConfig(external.WithSharedConfigProfile("uneet-prod"))
@@ -22,11 +29,11 @@ func main() {
 	}
 	cfg.Region = endpoints.ApSoutheast1RegionID
 	svc := cloudwatchlogs.New(cfg)
-	from := time.Now().Add(-time.Hour*time.Duration(*hours)).Unix() * 1000
-	log.WithField("from", from).Infof("last %d hours", *hours)
+	from := time.Now().Add(-time.Hour*time.Duration(hours)).Unix() * 1000
+	log.WithField("from", from).Infof("last %d hours", hours)
 
 	req := svc.FilterLogEventsRequest(&cloudwatchlogs.FilterLogEventsInput{
-		FilterPattern: aws.String(`[..., request = *HTTP*, status_code = 5**, , ,]`),
+		FilterPattern: aws.String(`[,,,, request=*HTTP*, status_code=5**]`),
 		LogGroupName:  aws.String("bugzilla"),
 		StartTime:     &from,
 	})
